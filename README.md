@@ -13,16 +13,9 @@ data class ReactorConfig(
         -- Example lua script
         
         function getOutput()
-            local body = {
-                ["content"] = string:format("Event from '%s' at '%s':\n%s",
-                                            body.name or body.id,
-                                            utils:fromTimestamp(body.timestamp),
-                                            body.content),
-                ["some_id"] = -120,
-                ["extra"] = utils:fromJson(body.extras)["signature"]
-            }
-            
-            return utils:toJson(body)
+            return utils:toJson({
+                text = string.format("%s@%d: %s", data.name, data.timestamp, data.content)
+            })
         end
     """.trimIndent(),
     val ctype: String = "application/json",
@@ -42,7 +35,7 @@ The `lua` have exposure to:
 - `utils` (`LuaUtils` private object of `DataConversation.kt`):
   - `fromJson`      -> converts the provided str into a lua table (nullable)
   - `toJson`        -> converts table, primitive types into json equivalent (optional boolean will pretty print if true)
-  - `fromTimestamp` -> converts EPOC timestamp to "dd MMM yyyy, hh:mm a" string (e.g.: 18 AUG 1999, 4:20 PM)
+  - `fromTimestamp` -> converts EPOC timestamp to "dd MMM yyyy, hh:mm a" string (e.g.: `18 AUG 1999, 4:20 PM`)
 
 ### USAGE:
 Basically, `data` and `utils`, are tables with mentioned function/values as its entries  
@@ -51,6 +44,56 @@ The provided script must have a function named `getOutput` with zero arguments a
 ```lua
 function getOutput()
     return "am i adhering to my ctype?"  -- Nope
+end
+```
+
+A more complete example suitable for telegram posting would be:
+```lua
+local function is_empty(str)
+    return str == nil or str == "" or (type(str) == "string" and str:match("^%s*$") ~= nil)
+end
+
+local function select_from(...)
+    for i = 1, select("#", ...) do
+        local v = select(i, ...)
+        if not is_empty(v) then
+            return v
+        end
+    end
+    return nil
+end
+
+local function escape_html(str)
+    if type(str) ~= "string" then return str end
+    return str:gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;")
+end
+
+function getOutput()
+    local prefix = "DEVICE_IDENTIFIER"
+    local id = select_from(data.id, "??Unknown??")
+    local time = select_from(utils.fromTimestamp(data.timestamp), "18 AUG 1999, 4:20 PM")
+
+    local sender = escape_html(select_from(data.name, id))
+    local content = escape_html(select_from(data.content, "<Empty Message>"))
+    local safe_id = escape_html(id)
+    local safe_prefix = escape_html(prefix)
+    local safe_time = escape_html(time)
+
+    local message = ([[
+<b>%s</b>
+<blockquote expandable>%s</blockquote>
+
+<blockquote><b>%s</b>
+<b><i>%s</i></b>
+<tg-time unix="%d" format="wDT">%s</tg-time>
+</blockquote>
+]]):format(sender, content, safe_id, safe_prefix, data.timestamp, safe_time)
+
+    return utils.toJson({
+        text = message,
+        chat_id = -1000000000, -- FILL This
+        parse_mode = "HTML",
+    })
 end
 ```
 
