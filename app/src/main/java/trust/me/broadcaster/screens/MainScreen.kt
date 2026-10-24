@@ -66,6 +66,7 @@ import trust.me.broadcaster.dataclasses.AppInfo
 import trust.me.broadcaster.services.NotificationService
 import trust.me.broadcaster.ui.theme.BroadcasterTheme
 
+
 private fun hasNotificationAccess(context: Context): Boolean {
     val enabledListeners = Settings.Secure.getString(
         context.contentResolver,
@@ -147,11 +148,12 @@ fun HomeScreen(
                 )
 
                 TextButton(onClick = { showAppList = !showAppList }) {
-                    Text("Show App's")
+                    Text("Show Apps")
                 }
             }
 
             item {
+
                 // Permission Status Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -192,6 +194,7 @@ fun HomeScreen(
             }
 
             item {
+
                 // Service Lifecycle & Status Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -260,14 +263,13 @@ fun HomeScreen(
                 val pm = ctx.packageManager
                 val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
 
-                packages
-                    .map { app ->
-                        AppInfo(
-                            packageName = app.packageName,
-                            appName = pm.getApplicationLabel(app).toString(),
-                            icon = pm.getApplicationIcon(app)
-                        )
-                    }.sortedBy { it.appName }
+                packages.map {
+                    AppInfo(
+                        packageName = it.packageName,
+                        appName = pm.getApplicationLabel(it).toString(),
+                        icon = pm.getApplicationIcon(it)
+                    )
+                }.sortedBy { it.appName }
             }
         }
 
@@ -276,7 +278,7 @@ fun HomeScreen(
             onDismiss = { showAppList = false },
             onAppSelected = { pkgName ->
                 val pkg = pkgName.replace(".", "\\.")
-                val prevPattern = pattern.removeSurrounding("(", ")")
+                val prevPattern = pattern.removeSurrounding("(", ")").takeIf { it != ".*" } ?: ""
 
                 pattern = if (prevPattern.isEmpty()) {
                     "($pkg)"

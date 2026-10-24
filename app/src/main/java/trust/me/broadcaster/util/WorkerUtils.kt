@@ -9,6 +9,7 @@ import com.google.gson.Gson
 import trust.me.broadcaster.dataclasses.SenderData
 import trust.me.broadcaster.workers.ReactorWorker
 
+
 object WorkerUtils {
     private val gson = Gson()
 

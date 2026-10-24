@@ -46,6 +46,159 @@ class ReactorWorker(
     private lateinit var appSettings: AppSettings
     private lateinit var notificationManager: NotificationManagerCompat
 
+    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+        init(applicationContext)
+        createNotificationChannel()
+
+        val senderJson = inputData.getString(WorkerKeys.SenderData.value).orEmpty()
+        if (senderJson.isEmpty()) {
+            return@withContext Result.success()
+        }
+
+        val configs = appSettings.string(AppSettings.Keys.ReactorConfig)
+            .takeIf { it.isNotEmpty() }
+            ?.let {
+                gson.fromJson<List<ReactorConfig>>(
+                    it,
+                    object : TypeToken<List<ReactorConfig>>() {}.type
+                )
+            }
+            .orEmpty()
+            .filter { it.endpoint.isNotEmpty() }
+
+        if (configs.isEmpty()) {
+            return@withContext Result.success()
+        }
+
+        val senderData = gson.fromJson(senderJson, SenderData::class.java)
+        val total = configs.size
+        var success = 0
+
+        masterNotification(0, total, 0, "Starting reactors")
+
+        // Initially show all reactors as queued.
+        configs.forEachIndexed { index, config ->
+            reactorNotification(index, config.name, total, Stage.QUEUED)
+        }
+
+        try {
+            configs.forEachIndexed { index, config ->
+                ensureActive()
+
+                val current = index + 1
+
+                masterNotification(
+                    index, total, success,
+                    "Reactor $current · Starting"
+                )
+
+                try {
+                    reactorNotification(index, config.name, total, Stage.GENERATING)
+                    masterNotification(
+                        index, total, success,
+                        "Reactor $current · Generating body"
+                    )
+
+                    val bodyResult = senderData.evalBody(config.bodyLua)
+                    val body = bodyResult.getOrNull()
+
+                    if (bodyResult.isFailure || body.isNullOrEmpty()) {
+                        throw IllegalStateException(
+                            "Body generation failed",
+                            bodyResult.exceptionOrNull()
+                        )
+                    }
+
+                    ensureActive()
+
+                    reactorNotification(index, config.name, total, Stage.CONNECTING, expandDetail = "Generated body:\n$body")
+
+                    val connection = (URL(config.endpoint)
+                        .openConnection() as HttpURLConnection).apply {
+                        requestMethod = config.method
+                        setRequestProperty("Content-Type", config.ctype)
+                        connectTimeout = 10_000
+                        readTimeout = 10_000
+                    }
+
+                    var code: Int = 0
+                    var responseBody: String = ""
+
+                    try {
+                        reactorNotification(index, config.name, total, Stage.SENDING, expandDetail = "${config.method} on:\n${config.endpoint}\n${body}\nContent-Type: ${config.ctype}")
+                        masterNotification(
+                            index, total, success,
+                            "Reactor $current · Sending request"
+                        )
+
+                        if (config.method.equals("POST", true)) {
+                            connection.doOutput = true
+                            OutputStreamWriter(connection.outputStream).use {
+                                it.write(body)
+                                it.flush()
+                            }
+                        }
+
+                        ensureActive()
+
+                        code = connection.responseCode
+                        responseBody = (
+                            if (code in 200..299)
+                                connection.inputStream
+                            else
+                                connection.errorStream
+                        )?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+                        reactorNotification(
+                            index, config.name, total,
+                            Stage.VALIDATING,
+                            "Checking HTTP $code",
+                        )
+                    } finally {
+                        connection.disconnect()
+                    }
+
+                    val ok = code in config.expected
+                    if (ok) success++
+
+                    reactorNotification(
+                        index, config.name, total, if (ok) Stage.SUCCESS else Stage.FAILED,
+                        "${if (!ok) "Unexpected " else ""}HTTP $code · ${config.method}",
+                        expandDetail = "[$code]:\n === Response ===\n${responseBody}\n === Request ===\n${body}\n"
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "Reactor $current failed", e)
+
+                    reactorNotification(
+                        index, config.name,total, Stage.FAILED,
+                        e.message ?: "Unknown error"
+                    )
+                }
+
+                masterNotification(
+                    current, total, success,
+                    "Reactor $current completed"
+                )
+            }
+        } catch (e: CancellationException) {
+            masterNotification(
+                total, total, success,
+                "Cancelled", finished = true
+            )
+            throw e
+        }
+
+        masterNotification(
+            total, total, success,
+            "Finished", finished = true
+        )
+
+        Log.d(TAG, "Completed: $success/$total")
+        Result.success()
+    }
+
     private fun init(context: Context) {
         gson = Gson()
         appSettings = AppSettings(context)
@@ -135,12 +288,8 @@ class ReactorWorker(
 
         when (stage) {
             Stage.QUEUED -> builder.setProgress(0, 0, true)
-            Stage.SUCCESS -> builder.setSmallIcon(
-                android.R.drawable.stat_sys_upload_done
-            )
-            Stage.FAILED -> builder.setSmallIcon(
-                android.R.drawable.stat_notify_error
-            )
+            Stage.SUCCESS -> builder.setSmallIcon(android.R.drawable.stat_sys_upload_done)
+            Stage.FAILED -> builder.setSmallIcon(android.R.drawable.stat_notify_error)
             else -> builder.setProgress(4, stage.progress, false)
         }
 
@@ -154,173 +303,6 @@ class ReactorWorker(
         notify(REACTOR_ID_BASE + index, builder)
     }
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        init(applicationContext)
-        createNotificationChannel()
-
-        val senderJson = inputData.getString(
-            WorkerKeys.SenderData.value
-        ).orEmpty()
-
-        if (senderJson.isEmpty()) {
-            return@withContext Result.success()
-        }
-
-        val configs = appSettings.string(AppSettings.Keys.ReactorConfig)
-            .takeIf { it.isNotEmpty() }
-            ?.let {
-                gson.fromJson<List<ReactorConfig>>(
-                    it,
-                    object : TypeToken<List<ReactorConfig>>() {}.type
-                )
-            }
-            .orEmpty()
-            .filter { it.endpoint.isNotEmpty() }
-
-        if (configs.isEmpty()) {
-            return@withContext Result.success()
-        }
-
-        val senderData = gson.fromJson<SenderData>(
-            senderJson,
-            object : TypeToken<SenderData>() {}.type
-        )
-
-        val total = configs.size
-        var success = 0
-
-        masterNotification(0, total, 0, "Starting reactors")
-
-        // Initially show all reactors as queued.
-        configs.forEachIndexed { index, config ->
-            reactorNotification(index, config.name, total, Stage.QUEUED)
-        }
-
-        try {
-            configs.forEachIndexed { index, config ->
-                ensureActive()
-
-                val current = index + 1
-
-                masterNotification(
-                    index, total, success,
-                    "Reactor $current · Starting"
-                )
-
-                try {
-                    reactorNotification(index, config.name, total, Stage.GENERATING)
-                    masterNotification(
-                        index, total, success,
-                        "Reactor $current · Generating body"
-                    )
-
-                    val bodyResult = senderData.evalBody(config.bodyLua)
-                    val body = bodyResult.getOrNull()
-
-                    if (bodyResult.isFailure || body.isNullOrEmpty()) {
-                        throw IllegalStateException(
-                            "Body generation failed",
-                            bodyResult.exceptionOrNull()
-                        )
-                    }
-
-                    ensureActive()
-
-                    reactorNotification(index, config.name, total, Stage.CONNECTING, expandDetail = "Generated body:\n$body")
-
-                    val connection = (URL(config.endpoint)
-                        .openConnection() as HttpURLConnection).apply {
-                        requestMethod = config.method
-                        setRequestProperty("Content-Type", config.ctype)
-                        connectTimeout = 10_000
-                        readTimeout = 10_000
-                    }
-
-                    var code: Int = 0
-                    var responseBody: String = ""
-
-                    try {
-                        reactorNotification(index, config.name, total, Stage.SENDING, expandDetail = "${config.method} on:\n${config.endpoint}\n${body}\nContent-Type: ${config.ctype}")
-                        masterNotification(
-                            index, total, success,
-                            "Reactor $current · Sending request"
-                        )
-
-                        if (config.method.equals("POST", true)) {
-                            connection.doOutput = true
-                            OutputStreamWriter(connection.outputStream).use {
-                                it.write(body)
-                                it.flush()
-                            }
-                        }
-
-                        ensureActive()
-
-                        code = connection.responseCode
-                        responseBody = (
-                            if (code in 200..299)
-                            connection.inputStream
-                            else
-                            connection.errorStream
-                        )?.bufferedReader()?.use { it.readText() }.orEmpty()
-
-                        reactorNotification(
-                            index, config.name, total,
-                            Stage.VALIDATING,
-                            "Checking HTTP $code",
-                        )
-                    } finally {
-                        connection.disconnect()
-                    }
-
-                    if (code in config.expected) {
-                        success++
-                        reactorNotification(
-                            index, config.name,total, Stage.SUCCESS,
-                            "HTTP $code · ${config.method}",
-                            expandDetail = "[$code]:\n === Response ===\n${responseBody}\n === Request ===\n${body}\n"
-                        )
-                    } else {
-                        reactorNotification(
-                            index, config.name, total, Stage.FAILED,
-                            "Unexpected HTTP $code",
-                            expandDetail = "[$code]:\n === Response ===\n${responseBody}\n === Request ===\n${body}\n"
-                        )
-                    }
-
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    Log.e(TAG, "Reactor $current failed", e)
-
-                    reactorNotification(
-                        index, config.name,total, Stage.FAILED,
-                        e.message ?: "Unknown error"
-                    )
-                }
-
-                masterNotification(
-                    current, total, success,
-                    "Reactor $current completed"
-                )
-            }
-        } catch (e: CancellationException) {
-            masterNotification(
-                total, total, success,
-                "Cancelled", finished = true
-            )
-            throw e
-        }
-
-        masterNotification(
-            total, total, success,
-            "Finished", finished = true
-        )
-
-        Log.d(TAG, "Completed: $success/$total")
-        Result.success()
-    }
-
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -328,7 +310,7 @@ class ReactorWorker(
                 "Reactor Notifications",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Webhook reactor execution progress"
+                description = "Reactor execution progress"
             }
 
             val manager = applicationContext.getSystemService(

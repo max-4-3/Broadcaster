@@ -46,6 +46,7 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 
+
 fun highlightLua(code: String): AnnotatedString {
     val keywords = setOf(
         "and", "break", "do", "else", "elseif", "end",
@@ -65,11 +66,10 @@ fun highlightLua(code: String): AnnotatedString {
             val token = match.value
 
             val color = when {
-                token.startsWith("--") -> Color(0xFF6A9955)
-                token.startsWith("\"") || token.startsWith("'") ->
-                    Color(0xFFCE9178)
                 token in keywords -> Color(0xFFC586C0)
+                token.startsWith("--") -> Color(0xFF6A9955)
                 token.first().isDigit() -> Color(0xFFB5CEA8)
+                token.startsWith("\"") || token.startsWith("'") -> Color(0xFFCE9178)
                 else -> null
             }
 
@@ -171,6 +171,7 @@ fun ReactorConfigCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+
             // Header Row with Title and Delete Button
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
@@ -260,8 +261,5 @@ fun ReactorConfigCard(
 @Preview
 @Composable
 fun ReactorConfigPreview() {
-    ReactorConfigScreen(
-        onSaveConfigs = {},
-        onBack = {}
-    )
+    ReactorConfigScreen(onSaveConfigs = {}, onBack = {})
 }

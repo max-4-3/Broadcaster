@@ -24,6 +24,7 @@ import trust.me.broadcaster.ui.theme.BroadcasterTheme
 import java.io.IOException
 import java.util.regex.Pattern
 
+
 class MainActivity : ComponentActivity() {
     private fun isValidRegex(pattern: String): Boolean {
         return try {

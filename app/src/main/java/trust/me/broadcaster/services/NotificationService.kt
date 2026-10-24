@@ -8,6 +8,7 @@ import trust.me.broadcaster.util.DataConversion
 import trust.me.broadcaster.util.WorkerUtils
 import java.util.regex.Pattern
 
+
 class NotificationService : NotificationListenerService() {
     companion object {
         private const val TAG = "TrustMeBroadcaster"
@@ -17,45 +18,48 @@ class NotificationService : NotificationListenerService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.e(TAG, "SERVICE CREATED")
+        Log.d(TAG, "SERVICE CREATED")
     }
 
     override fun onListenerConnected() {
         super.onListenerConnected()
-        Log.e(TAG, "LISTENER CONNECTED")
+        Log.d(TAG, "LISTENER CONNECTED")
         alive = true
     }
 
     override fun onListenerDisconnected() {
         super.onListenerDisconnected()
-        Log.e(TAG, "LISTENER DISCONNECTED")
+        Log.d(TAG, "LISTENER DISCONNECTED")
         alive = false
     }
 
     override fun onListenerHintsChanged(hints: Int) {
-        Log.e(TAG, "Listener hints: $hints")
+        Log.d(TAG, "Listener hints: $hints")
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: RankingMap?) {
-        Log.e(TAG, "onNotificationPosted(sbn, rankingMap)")
+        Log.d(TAG, "onNotificationPosted(sbn, rankingMap)")
         onNotificationPosted(sbn)
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        Log.e(TAG, "onNotificationPosted(${sbn})")
-        if (sbn == null) {
-            Log.e(TAG, "sbn is null")
+        Log.d(TAG, "onNotificationPosted(${sbn})")
+        if (sbn == null || sbn.isOngoing) {
+            Log.e(TAG, "sbn is null or notification is onGoing")
             return
         }
 
         val appSettings = AppSettings(this)
         val packageName = sbn.packageName
 
-        val pattern = appSettings.string(AppSettings.Keys.Regex)
-            .takeIf { it.isNotEmpty() } ?: ".*"
-
-        val regex = Pattern.compile(pattern)
-        Log.e(TAG, "pattern(${regex.pattern()})")
+        val pattern = appSettings.string(AppSettings.Keys.Regex).takeIf { it.isNotEmpty() } ?: ".*"
+        val regex = patternOrNull(pattern)
+        if (regex == null) {
+            Log.e(TAG, "invalid pattern: $pattern")
+            return
+        } else {
+            Log.d(TAG, "pattern(${regex.pattern()})")
+        }
 
         if (!regex.matcher(packageName).matches()) {
             Log.e(TAG, "pattern(${regex.pattern()}) != input(${packageName})")
@@ -68,9 +72,17 @@ class NotificationService : NotificationListenerService() {
         }
 
         val data = DataConversion.fromNotification(sbn)
-        Log.e(TAG, "data(${data})")
+        Log.i(TAG, "data(${data})")
 
         val result = WorkerUtils.enqueueWork(data, this)
-        Log.e(TAG, "result(${result.state})")
+        Log.i(TAG, "result(${result.state})")
+    }
+
+    private fun patternOrNull(pattern: String): Pattern? {
+        return try {
+            Pattern.compile(pattern)
+        } catch (_: Exception) {
+            null
+        }
     }
 }
