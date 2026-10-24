@@ -6,7 +6,7 @@ plugins {
 android {
     namespace 'trust.me.broadcaster'
     compileSdk {
-        version = release(36) {
+        version = release(37) {
             minorApiLevel = 1
         }
     }
@@ -55,7 +55,12 @@ dependencies {
     implementation libs.androidx.compose.ui.graphics
     implementation libs.androidx.compose.ui.tooling.preview
     implementation libs.androidx.compose.material3
-    implementation libs.gson
+    implementation libs.androidx.compose.material.icons
     implementation libs.androidx.work.runtime.ktx
+    implementation libs.gson
     implementation libs.luaj.jse
+    androidTestImplementation platform(libs.androidx.compose.bom)
+    androidTestImplementation libs.androidx.compose.ui.test.junit4
+    debugImplementation libs.androidx.compose.ui.test.manifest
+    debugImplementation libs.androidx.compose.ui.tooling
 }
