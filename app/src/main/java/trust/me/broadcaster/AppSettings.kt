@@ -11,7 +11,6 @@ import java.lang.reflect.Type
 
 object AppSettings {
     private const val PREFS_NAME = "app_prefs"
-//    private val gson = GsonBuilder().setPrettyPrinting().setStrictness(Strictness.LENIENT).create()
     private lateinit var prefs: SharedPreferences
     val allowedVersions = setOf("1.0")
 
@@ -19,7 +18,15 @@ object AppSettings {
         Regex(String::class.java),
         ReactorConfig(String::class.java),
         ShowNotifications(Boolean::class.java),
+        MaxDelaySeconds(Int::class.java),
+        PauseTemporarily(Boolean::class.java),
     }
+
+    @JvmStatic
+    fun int(key: Keys): Int = prefs.getInt("$key", 1)
+
+    @JvmStatic
+    fun int(key: Keys, value: Int): Unit = prefs.edit { putInt("$key", value) }
 
     @JvmStatic
     fun string(key: Keys): String = prefs.getString("$key", "") ?: ""
@@ -63,6 +70,7 @@ object AppSettings {
         when (value) {
             is Boolean -> boolean(key, value)
             is String -> string(key, value)
+            is Int -> int(key, value)
             is Collection<*> -> {
                 require(value.all { it is String }) {
                     "Expected a collection of string for $key"

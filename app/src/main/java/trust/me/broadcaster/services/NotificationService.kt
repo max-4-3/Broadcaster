@@ -74,7 +74,7 @@ class NotificationService : NotificationListenerService() {
         Log.i(TAG, "data(${data})")
 
         val result = WorkerUtils.enqueueWork(data, this)
-        Log.i(TAG, "result(${result.state})")
+        Log.i(TAG, "result(${result?.state ?: "PAUSED"})")
     }
 
     private fun patternOrNull(pattern: String): Pattern? {
