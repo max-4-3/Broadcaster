@@ -38,6 +38,9 @@ android {
         debug {
             applicationIdSuffix '.debug'
             resValue("string", "app_name", "Broadcaster Debug")
+            resValue("string", "title_activity_bug", "BugActivity Debug")
+            resValue("string", "title_activity_main", "MainActivity Debug")
+            resValue("string", "title_service_notification", "MonitorNotificationService Debug")
         }
     }
 
