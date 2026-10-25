@@ -1,5 +1,9 @@
 package trust.me.broadcaster.dataclasses
 
+import androidx.annotation.Keep
+
+
+@Keep
 data class ReactorConfig(
     val name: String = "Untitled",
     val method: String = "POST", // "GET" or "POST"
