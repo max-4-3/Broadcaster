@@ -19,7 +19,7 @@
             android:name=".services.NotificationService"
             android:enabled="true"
             android:exported="true"
-            android:label="NotificationServiceForBroadcastReceiver"
+            android:label="@string/title_service_notification"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
@@ -29,6 +29,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:label="@string/title_activity_main"
             android:theme="@style/Theme.Broadcaster">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
