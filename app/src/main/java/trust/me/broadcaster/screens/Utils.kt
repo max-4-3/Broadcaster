@@ -1,5 +1,6 @@
 package trust.me.broadcaster.screens
 
+import android.content.pm.PackageManager
 import android.content.ComponentName
 import android.content.Context
 import android.provider.Settings
@@ -9,6 +10,15 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import trust.me.broadcaster.services.NotificationService
 
+
+fun isNotificationServiceEnabled(context: Context): Boolean {
+    return when (context.packageManager.getComponentEnabledSetting(ComponentName(context, NotificationService::class.java))) {
+        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+        PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER,
+        PackageManager.COMPONENT_ENABLED_STATE_DISABLED_UNTIL_USED -> false
+        else -> true // DEFAULT (manifest value, enabled) or ENABLED
+    }
+}
 
 fun hasNotificationAccess(context: Context): Boolean {
     val enabledListeners = Settings.Secure.getString(

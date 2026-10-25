@@ -47,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,9 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -75,14 +79,29 @@ fun HomeScreen(
     BackHandler(onBack = onBack)
 
     val ctx = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     var granted by remember { mutableStateOf(false) }
-    var alive by remember { mutableStateOf(false) }
+    var enabled by remember { mutableStateOf(false) }
     var showAppList by remember { mutableStateOf(false) }
 
     try {
         granted = hasNotificationAccess(ctx)
-        alive = NotificationService.alive
+        enabled = isNotificationServiceEnabled(ctx)
     } catch (_: NoClassDefFoundError) {  }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> 
+            if (event == Lifecycle.Event.ON_RESUME) {
+                try {
+                    granted = hasNotificationAccess(ctx)
+                    enabled = isNotificationServiceEnabled(ctx)
+                } catch (_: NoClassDefFoundError) { /* Preview mode raises NoClassDefFoundError */ }
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(observer) 
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         topBar = {
@@ -175,9 +194,14 @@ fun HomeScreen(
                         ) {
                             Text("Service Status", style = MaterialTheme.typography.titleSmall)
                             Badge(
-                                containerColor = if (alive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                containerColor = if (enabled)
+                                    MaterialTheme.colorScheme.primary 
+                                else MaterialTheme.colorScheme.error
                             ) {
-                                Text(if (alive) "ACTIVE" else "STOPPED", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                                Text(
+                                    if (enabled) "ENABLED" else "DISABLED",
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
                             }
                         }
 
@@ -189,7 +213,7 @@ fun HomeScreen(
                                 onClick = {
                                     val componentName = ComponentName(ctx, NotificationService::class.java)
                                     NotificationListenerService.requestRebind(componentName)
-                                    alive = NotificationService.alive
+                                    enabled = isNotificationServiceEnabled(ctx)
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
@@ -198,18 +222,33 @@ fun HomeScreen(
 
                             OutlinedButton(
                                 onClick = {
-                                    val packageManager = ctx.packageManager
                                     val componentName = ComponentName(ctx, NotificationService::class.java)
-                                    packageManager.setComponentEnabledSetting(
+                                    ctx.packageManager.setComponentEnabledSetting(
+                                        componentName,
+                                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+                                        PackageManager.DONT_KILL_APP
+                                    )
+                                    NotificationListenerService.requestRebind(componentName)
+                                    enabled = isNotificationServiceEnabled(ctx)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Force-Enable")
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    val componentName = ComponentName(ctx, NotificationService::class.java)
+                                    ctx.packageManager.setComponentEnabledSetting(
                                         componentName,
                                         PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                                         PackageManager.DONT_KILL_APP
                                     )
-                                    alive = NotificationService.alive
+                                    enabled = isNotificationServiceEnabled(ctx)
                                 },
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text("Force-Stop")
+                                Text("Force-Disable")
                             }
                         }
                     }
