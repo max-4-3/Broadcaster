@@ -53,11 +53,16 @@ android {
         resValues = true
     }
 
-    applicationVariants.all { variant ->
-        variant.outputs.all { output ->
-            outputFileName = "Broadcaster-${variant.name}-${variant.versionName}.apk"
+}
+
+def appName = "broadcaster"
+androidComponents {
+    onVariants(selector().all(), { variant ->
+        variant.outputs.each { output ->
+            def versionName = android.defaultConfig.versionName
+            output.outputFileName.set("${appName}-${variant.name}-${versionName}.apk")
         }
-    }
+    })
 }
 
 dependencies {
