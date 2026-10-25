@@ -52,6 +52,12 @@ android {
         compose true
         resValues = true
     }
+
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            outputFileName = "Broadcaster-${variant.name}-${variant.versionName}.apk"
+        }
+    }
 }
 
 dependencies {
