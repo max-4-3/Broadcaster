@@ -49,10 +49,9 @@ class NotificationService : NotificationListenerService() {
             return
         }
 
-        val appSettings = AppSettings(this)
         val packageName = sbn.packageName
 
-        val pattern = appSettings.string(AppSettings.Keys.Regex).takeIf { it.isNotEmpty() } ?: ".*"
+        val pattern = AppSettings.string(AppSettings.Keys.Regex).takeIf { it.isNotEmpty() } ?: ".*"
         val regex = patternOrNull(pattern)
         if (regex == null) {
             Log.e(TAG, "invalid pattern: $pattern")

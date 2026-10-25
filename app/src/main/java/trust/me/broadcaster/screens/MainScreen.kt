@@ -11,7 +11,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
-import android.util.Log
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
@@ -67,57 +65,31 @@ import trust.me.broadcaster.services.NotificationService
 import trust.me.broadcaster.ui.theme.BroadcasterTheme
 
 
-private fun hasNotificationAccess(context: Context): Boolean {
-    val enabledListeners = Settings.Secure.getString(
-        context.contentResolver,
-        "enabled_notification_listeners"
-    ) ?: return false
-
-    val component = ComponentName(
-        context,
-        NotificationService::class.java
-    )
-
-    return enabledListeners.split(':').any {
-        it.equals(component.flattenToString(), ignoreCase = true)
-    }
-}
-
 @SuppressLint("QueryPermissionsNeeded")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    onPatternChange: (String) -> Unit,
-    onNavigateToReactors: () -> Unit,
-    onImportRequest: () -> Unit,
-    onExportRequest: () -> Unit,
-    initialPattern: String = ".*",
-    title: String = "Pattern"
+    onBack: () -> Unit,
+    onNavigateToConfig: () -> Unit,
 ) {
+    BackHandler(onBack = onBack)
+
     val ctx = LocalContext.current
-    var pattern by remember { mutableStateOf(initialPattern) }
-    var granted by remember { mutableStateOf(hasNotificationAccess(ctx)) }
-    var alive by remember { mutableStateOf(NotificationService.alive) }
+    var granted by remember { mutableStateOf(false) }
+    var alive by remember { mutableStateOf(false) }
     var showAppList by remember { mutableStateOf(false) }
+
+    try {
+        granted = hasNotificationAccess(ctx)
+        alive = NotificationService.alive
+    } catch (_: NoClassDefFoundError) {  }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Home") },
                 actions = {
-                    IconButton(onClick = onImportRequest) {
-                        Icon(
-                            Icons.Filled.KeyboardArrowDown,
-                            contentDescription = "Import external config"
-                        )
-                    }
-                    IconButton(onClick = onExportRequest) {
-                        Icon(
-                            Icons.Filled.KeyboardArrowUp,
-                            contentDescription = "Export external config"
-                        )
-                    }
-                    IconButton(onClick = onNavigateToReactors) {
+                    IconButton(onClick = onNavigateToConfig) {
                         Icon(
                             Icons.Default.Settings,
                             contentDescription = "Open settings"
@@ -137,16 +109,6 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Script / Pattern configuration input
-                OutlinedTextField(
-                    value = pattern,
-                    onValueChange = { pattern = it; onPatternChange(pattern) },
-                    label = { Text(title) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
                 TextButton(onClick = { showAppList = !showAppList }) {
                     Text("Show Apps")
                 }
@@ -276,16 +238,7 @@ fun HomeScreen(
         AppSelectionDialog(
             apps = apps,
             onDismiss = { showAppList = false },
-            onAppSelected = { pkgName ->
-                val pkg = pkgName.replace(".", "\\.")
-                val prevPattern = pattern.removeSurrounding("(", ")").takeIf { it != ".*" } ?: ""
-
-                pattern = if (prevPattern.isEmpty()) {
-                    "($pkg)"
-                } else {
-                    "($prevPattern|$pkg)"
-                }
-            }
+            onAppSelected = {  }
         )
     }
 }
@@ -374,10 +327,8 @@ fun AppSelectionDialog(
 fun HomeScreenPreview() {
     BroadcasterTheme(darkTheme = true) {
         HomeScreen(
-            onPatternChange = { pattern -> Log.d("TEST", pattern) },
-            onNavigateToReactors = {},
-            onExportRequest = {},
-            onImportRequest = {},
+            onBack = {},
+            onNavigateToConfig = {},
         )
     }
 }

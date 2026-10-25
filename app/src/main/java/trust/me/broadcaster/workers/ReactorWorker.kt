@@ -43,8 +43,8 @@ class ReactorWorker(
     }
 
     private lateinit var gson: Gson
-    private lateinit var appSettings: AppSettings
     private lateinit var notificationManager: NotificationManagerCompat
+    private var showNotifications: Boolean = true
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
         init(applicationContext)
@@ -55,7 +55,7 @@ class ReactorWorker(
             return@withContext Result.success()
         }
 
-        val configs = appSettings.string(AppSettings.Keys.ReactorConfig)
+        val configs = AppSettings.string(AppSettings.Keys.ReactorConfig)
             .takeIf { it.isNotEmpty() }
             ?.let {
                 gson.fromJson<List<ReactorConfig>>(
@@ -201,12 +201,17 @@ class ReactorWorker(
 
     private fun init(context: Context) {
         gson = Gson()
-        appSettings = AppSettings(context)
         notificationManager = NotificationManagerCompat.from(context)
+        showNotifications = AppSettings.boolean(AppSettings.Keys.ShowNotifications)
     }
 
     private fun notify(id: Int, builder: NotificationCompat.Builder) {
         try {
+            if (!showNotifications) {
+                notificationManager.cancel(id)
+                return
+            }
+
             notificationManager.notify(id, builder.build())
         } catch (e: SecurityException) {
             Log.w(TAG, "Notification permission denied", e)
@@ -227,6 +232,7 @@ class ReactorWorker(
         current: String,
         finished: Boolean = false
     ) {
+        if (!showNotifications) return
         val failed = completed - success
 
         val builder = baseNotification()
@@ -268,6 +274,7 @@ class ReactorWorker(
         detail: String = "",
         expandDetail: String = "",
     ) {
+        if (!showNotifications) return
         val finished = stage == Stage.SUCCESS || stage == Stage.FAILED
 
         val title = when (stage) {
@@ -304,6 +311,8 @@ class ReactorWorker(
     }
 
     private fun createNotificationChannel() {
+        if (!showNotifications) return
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,

@@ -37,7 +37,7 @@ android {
         }
         debug {
             applicationIdSuffix '.debug'
-            versionNameSuffix 'Debug'
+            resValue("string", "app_name", "Broadcaster Debug")
         }
     }
 
@@ -48,6 +48,7 @@ android {
 
     buildFeatures {
         compose true
+        resValues = true
     }
 }
 
