@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.google.gson.Strictness
 import com.google.gson.reflect.TypeToken
 import trust.me.broadcaster.dataclasses.ExternalConfig
 import trust.me.broadcaster.dataclasses.ReactorConfig
@@ -44,7 +45,7 @@ class MainActivity : ComponentActivity() {
         val configType = object : TypeToken<List<ReactorConfig>>() {}.type
         val appSettings = AppSettings(this)
         val gson = Gson()
-        val gsonPretty = GsonBuilder().setLenient().setPrettyPrinting().create()
+        val gsonPretty = GsonBuilder().setStrictness(Strictness.LENIENT).setPrettyPrinting().create()
 
         setContent {
             BroadcasterTheme(darkTheme = true) {
@@ -72,8 +73,14 @@ class MainActivity : ComponentActivity() {
                         require(externalConfig != null) { "Invalid reactor configuration" }
 
                         // Load prefs (includes ReactorConfig in one of its keys)
-                        for ((key, value) in externalConfig.settings) {
-                            appSettings.string(key, value)
+                        for ((keyRaw, value) in externalConfig.settings) {
+                            try {
+                                val key = AppSettings.Keys.valueOf(keyRaw)
+                                Log.d("ImportLauncher", "$key => ${value.split("\n").firstOrNull()}\\n...")
+                                appSettings.string(key, value)
+                            } catch (_: IllegalArgumentException) {
+                                Log.i("ImportLauncher", "Invalid key: $keyRaw")
+                            }
                         }
 
                         // Just in case some desync scenarios
@@ -98,23 +105,29 @@ class MainActivity : ComponentActivity() {
                             "Import failed: ${e.message}",
                             Toast.LENGTH_LONG
                         ).show()
+                        Log.e("ImportLauncher", "Import Failure: $e", e)
                     }
                 }
 
                 val exportLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument()
+                    contract = ActivityResultContracts.CreateDocument("application/json")
                 ) { uri ->
                     uri ?: return@rememberLauncherForActivityResult
 
                     try {
                         val externalConfig = ExternalConfig(
                             version = "1.0",
-                            reactors = gson.fromJson(appSettings.string(AppSettings.Keys.ReactorConfig), object: TypeToken<List<ReactorConfig>>() {}.type) ?: emptyList(),
-                            settings = mapOf(*AppSettings.Keys.entries.map { it to appSettings.string(it) }.toTypedArray())
+                            reactors = gson.fromJson(
+                                appSettings.string(AppSettings.Keys.ReactorConfig),
+                                object : TypeToken<List<ReactorConfig>>() {}.type
+                            ) ?: emptyList(),
+                            settings = AppSettings.Keys.entries.associate {
+                                it.name to appSettings.string(it)
+                            }
                         )
+
                         Log.d("ExportLauncher", "Config: $externalConfig")
                         val json = gsonPretty.toJson(externalConfig)
-                        Log.d("ExportLauncher", "JSON: $json")
 
                         context.contentResolver.openOutputStream(uri, "wt")
                             ?.bufferedWriter()
@@ -133,6 +146,7 @@ class MainActivity : ComponentActivity() {
                             "Export failed: ${e.message}",
                             Toast.LENGTH_LONG
                         ).show()
+                        Log.e("ExportLauncher", "Export Failure: $e", e)
                     }
                 }
 
@@ -142,7 +156,7 @@ class MainActivity : ComponentActivity() {
                         onNavigateToReactors = { currentScreen = "config" },
                         initialPattern = appSettings.string(AppSettings.Keys.Regex).takeIf { it.isNotEmpty() && isValidRegex(it) } ?: ".*",
                         onImportRequest = { importLauncher.launch(arrayOf("application/json", "text/plain")) },
-                        onExportRequest = { exportLauncher.launch(arrayOf("application/json")) },
+                        onExportRequest = { exportLauncher.launch("app-config.json") },
                     )
                     "config" -> ReactorConfigScreen(
                         onSaveConfigs = { items ->

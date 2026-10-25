@@ -121,8 +121,8 @@ class ReactorWorker(
                         readTimeout = 10_000
                     }
 
-                    var code: Int = 0
-                    var responseBody: String = ""
+                    var code: Int
+                    var responseBody: String
 
                     try {
                         reactorNotification(index, config.name, total, Stage.SENDING, expandDetail = "${config.method} on:\n${config.endpoint}\n${body}\nContent-Type: ${config.ctype}")
@@ -293,7 +293,7 @@ class ReactorWorker(
             else -> builder.setProgress(4, stage.progress, false)
         }
 
-        if (!expandDetail.isEmpty()) builder.setStyle(
+        if (expandDetail.isNotEmpty()) builder.setStyle(
             NotificationCompat.BigTextStyle()
                 .bigText(expandDetail)
                 .setBigContentTitle("More Details...")

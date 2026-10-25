@@ -1,7 +1,7 @@
 # Broadcaster
 
 Listens to `android` notifications and execute a `ReactorAction` or a Callback upon `Posting` of `notification`  
-it is primarly from sending notification from `android` to another place via internet  
+it is primarily from sending notification from `android` to another place via internet  
 
 Which would explain the structure of `ReactorConfig`:
 ```kotlin
@@ -34,13 +34,13 @@ The `lua` have exposure to:
   - `extras`        -> everything else
 - `utils` (`LuaUtils` private object of `DataConversation.kt`):
   - `fromJson`      -> converts the provided str into a lua table (nullable)
-  - `toJson`        -> converts table, primitive types into json equivalent (optional boolean will pretty print if true)
+  - `toJson`        -> converts table, primitive types into JSON equivalent (optional boolean will pretty print if true)
   - `fromTimestamp` -> converts EPOC timestamp to "dd MMM yyyy, hh:mm a" string (e.g.: `18 AUG 1999, 4:20 PM`)
 
 ### USAGE:
 Basically, `data` and `utils`, are tables with mentioned function/values as its entries  
 use `.` notation to access them (i.e. `data.name`, `utils.toJson`), not `:` (i.e. `data:name`, `data:fromJson`)  
-The provided script must have a function named `getOutput` with zero arguments and it must return a `string` which must match with `ctype` mentioned in `ReactorConfig`.  
+The provided script must have a function named `getOutput` with zero arguments, and it must return a `string` which must match with `ctype` mentioned in `ReactorConfig`.  
 ```lua
 function getOutput()
     return "am i adhering to my ctype?"  -- Nope

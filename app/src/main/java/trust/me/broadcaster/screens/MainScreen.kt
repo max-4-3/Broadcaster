@@ -332,8 +332,9 @@ fun AppSelectionDialog(
                             .clickable {
                                 // Copy package name to clipboard
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Package Name", app.packageName)
-                                clipboard.setPrimaryClip(clip)
+
+                                @Suppress("UsePropertyAccessSyntax")
+                                clipboard.setPrimaryClip(ClipData.newPlainText("Package Name", app.packageName))
 
                                 onAppSelected(app.packageName)
                                 onDismiss()

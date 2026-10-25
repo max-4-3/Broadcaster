@@ -1,13 +1,10 @@
 package trust.me.broadcaster.util
 
 import android.app.Notification
-import android.content.Intent
 import android.os.Bundle
-import android.provider.Telephony
 import android.service.notification.StatusBarNotification
-import com.google.gson.Gson
 import com.google.gson.GsonBuilder
-import com.google.gson.reflect.TypeToken
+import com.google.gson.Strictness
 import org.luaj.vm2.LuaError
 import org.luaj.vm2.LuaTable
 import org.luaj.vm2.LuaValue
@@ -19,18 +16,16 @@ import trust.me.broadcaster.dataclasses.SenderData
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import java.util.regex.Matcher
-import java.util.regex.Pattern
 
 
 object DataConversion {
-    private val gson = GsonBuilder().setLenient().create()
-    private val gsonPretty = GsonBuilder().setPrettyPrinting().setLenient().create()
+    private val gson = GsonBuilder().setStrictness(Strictness.LENIENT).create()
+    private val gsonPretty = GsonBuilder().setPrettyPrinting().setStrictness(Strictness.LENIENT).create()
 
     private object LuaUtils {
         fun fromJson(src: LuaValue): LuaValue? {
             return try {
-                if (src.isstring() && !src.toString().isEmpty())
+                if (src.isstring() && src.toString().isNotEmpty())
                     toLuaValue(gson.fromJson(src.toString(), Any::class.java))
                 else
                     null
