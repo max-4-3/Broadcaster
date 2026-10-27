@@ -19,3 +19,9 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# Keep all Luaj classes and their inner classes/methods for reflection
+-keep class org.luaj.vm2.** { *; }
+-dontwarn org.luaj.vm2.**
+
+-keepattributes InnerClasses, EnclosingMethod, Signature
